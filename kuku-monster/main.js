@@ -10,26 +10,15 @@ resize();
 window.addEventListener("resize", resize);
 
 // ====== ゲーム状態 ======
-// let state = {
-//   hp: 3,
-//   level: 1,
-//   question: null,
-//   choices: [],
-// };
-// let state = {
-//   hp: 3,
-//   level: 1,
-//   question: null,
-//   choices: [],
-//   score: 0,
-// };
 let state = {
   hp: 3,
   level: 1,
   question: null,
   choices: [],
   score: 0,
-  gameOver: false, // ← 追加
+  gameOver: false,
+  time: 10, // ← 残り時間（秒）
+  lastTime: null, // ← 時間計測用
 };
 
 // ====== 九九問題生成 ======
@@ -48,13 +37,13 @@ function createQuestion() {
   }
 
   state.question = { a, b, answer };
-  //  state.choices = Array.from(choices).sort(() => Math.random() - 0.5);
   state.choices = Array.from(choices)
     .map(v => ({ value: v, rect: null }))
     .sort(() => Math.random() - 0.5);
 }
 
 createQuestion();
+state.lastTime = performance.now();
 
 // ====== 描画 ======
 function draw() {
@@ -65,19 +54,23 @@ function draw() {
     return;
   }
 
-  // HP表示
-  // ctx.font = "24px sans-serif";
-  // ctx.fillText(`❤️ ${state.hp}`, 20, 40);
-
-  // HP表示
-  ctx.font = "24px sans-serif";
+  // HP
   ctx.textAlign = "left";
+  ctx.font = "24px sans-serif";
   ctx.fillStyle = "#000";
   ctx.fillText(`❤️ ${state.hp}`, 20, 40);
 
-  // スコア表示（右上）
+  // スコア
+  ctx.textAlign = "center";
+  ctx.fillText(`といたかず ${state.score}`, canvas.width / 2, 40);
+
+  // 残り時間
   ctx.textAlign = "right";
-  ctx.fillText(`といたかず ${state.score}`, canvas.width - 20, 40);
+  ctx.fillText(
+    `⏱ ${Math.ceil(state.time)}`,
+    canvas.width - 20,
+    40
+  );
 
   // モンスター（簡易）
   ctx.font = "80px sans-serif";
@@ -98,22 +91,7 @@ function draw() {
   const btnH = 70;
   const startY = 320;
 
-  // state.choices.forEach((num, i) => {
-  //   const x = i % 2 === 0 ? 20 : canvas.width / 2 + 20;
-  //   const y = startY + Math.floor(i / 2) * (btnH + 20);
-
-  //   ctx.fillStyle = "#d0eaff";
-  //   ctx.fillRect(x, y, btnW, btnH);
-
-  //   ctx.strokeStyle = "#333";
-  //   ctx.strokeRect(x, y, btnW, btnH);
-
-  //   ctx.fillStyle = "#000";
-  //   ctx.font = "32px sans-serif";
-  //   ctx.fillText(num, x + btnW / 2, y + 45);
-
   // ボタン情報を保存
-  //num._rect = { x, y, w: btnW, h: btnH };
   state.choices.forEach((choice, i) => {
     const x = i % 2 === 0 ? 20 : canvas.width / 2 + 20;
     const y = startY + Math.floor(i / 2) * (btnH + 20);
@@ -127,7 +105,6 @@ function draw() {
 
     // ← rect を保存
     choice.rect = { x, y, w: btnW, h: btnH };
-    // });
   });
 }
 
@@ -166,36 +143,6 @@ function drawGameOver() {
 }
 
 // ====== タップ判定 ======
-// canvas.addEventListener("touchstart", (e) => {
-//   e.preventDefault(); // ← iOS対策
-//   const touch = e.touches[0];
-//   const rect = canvas.getBoundingClientRect();
-//   const x = touch.clientX - rect.left;
-//   const y = touch.clientY - rect.top;
-
-//   // state.choices.forEach((num) => {
-//   // const r = num._rect;
-//   // if (
-//   //   x > r.x &&
-//   ///   x < r.x + r.w &&
-//   //   y > r.y &&
-//   //  y < r.y + r.h
-//   // ) {
-//   //   checkAnswer(num);
-//   //  }
-//   // });
-//   state.choices.forEach((choice) => {
-//     const r = choice.rect;
-//     if (
-//       x > r.x &&
-//       x < r.x + r.w &&
-//       y > r.y &&
-//       y < r.y + r.h
-//     ) {
-//       checkAnswer(choice.value);
-//     }
-//   });
-// });
 canvas.addEventListener("touchstart", (e) => {
   e.preventDefault();
   const touch = e.touches[0];
@@ -228,27 +175,6 @@ canvas.addEventListener("touchstart", (e) => {
 }, { passive: false });
 
 // ====== 正誤判定 ======
-// function checkAnswer(selected) {
-//   if (selected === state.question.answer) {
-//     createQuestion();
-//   } else {
-//     state.hp--;
-//     if (state.hp <= 0) {
-//       state.hp = 3; // ゲームオーバーなし
-//     }
-//   }
-// }
-// function checkAnswer(selected) {
-//   if (selected === state.question.answer) {
-//     state.score++; // ← 正解数をカウント
-//     createQuestion();
-//   } else {
-//     state.hp--;
-//     if (state.hp <= 0) {
-//       state.hp = 3;
-//     }
-//   }
-// }
 function checkAnswer(selected) {
   if (state.gameOver) return;
 
@@ -268,13 +194,34 @@ function checkAnswer(selected) {
 function restartGame() {
   state.hp = 3;
   state.score = 0;
+  state.time = 60;
   state.gameOver = false;
+  state.lastTime = performance.now();
   createQuestion();
 }
 
+function updateTime(now) {
+  if (state.gameOver) return;
+
+  if (!state.lastTime) {
+    state.lastTime = now;
+    return;
+  }
+
+  const delta = (now - state.lastTime) / 1000; // 秒
+  state.lastTime = now;
+  state.time -= delta;
+
+  if (state.time <= 0) {
+    state.time = 0;
+    state.gameOver = true; // ← 時間切れ
+  }
+}
+
 // ====== ループ ======
-function loop() {
+function loop(now) {
+  updateTime(now);
   draw();
   requestAnimationFrame(loop);
 }
-loop();
+requestAnimationFrame(loop);
