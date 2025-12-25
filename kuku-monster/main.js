@@ -17,8 +17,11 @@ let state = {
   choices: [],
   score: 0,
   gameOver: false,
-  time: 10, // ← 残り時間（秒）
-  lastTime: null, // ← 時間計測用
+  time: 60,
+  lastTime: null,
+
+  effect: null, // "correct" | "wrong" | null
+  effectTime: 0, // 残り時間（秒）
 };
 
 // ====== 九九問題生成 ======
@@ -75,7 +78,11 @@ function draw() {
   // モンスター（簡易）
   ctx.font = "80px sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText("👾", canvas.width / 2, 150);
+  let shakeX = 0;
+  if (state.effect === "correct") {
+    shakeX = Math.sin(Date.now() / 50) * 10;
+  }
+  ctx.fillText("👾", canvas.width / 2 + shakeX, 150);
 
   // 問題
   ctx.font = "40px sans-serif";
@@ -106,6 +113,17 @@ function draw() {
     // ← rect を保存
     choice.rect = { x, y, w: btnW, h: btnH };
   });
+
+  // エフェクト描画
+  if (state.effect === "correct") {
+    ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  if (state.effect === "wrong") {
+    ctx.fillStyle = "rgba(255, 0, 0, 0.3)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
 }
 
 function drawGameOver() {
@@ -180,15 +198,22 @@ function checkAnswer(selected) {
 
   if (selected === state.question.answer) {
     state.score++;
+    startEffect("correct");
     createQuestion();
   } else {
     state.hp--;
+    startEffect("wrong");
 
     if (state.hp <= 0) {
       state.hp = 0;
-      state.gameOver = true; // ← 終了
+      state.gameOver = true;
     }
   }
+}
+
+function startEffect(type) {
+  state.effect = type;
+  state.effectTime = 0.2; // 0.2秒
 }
 
 function restartGame() {
@@ -208,13 +233,21 @@ function updateTime(now) {
     return;
   }
 
-  const delta = (now - state.lastTime) / 1000; // 秒
+  const delta = (now - state.lastTime) / 1000;
   state.lastTime = now;
   state.time -= delta;
 
   if (state.time <= 0) {
     state.time = 0;
-    state.gameOver = true; // ← 時間切れ
+    state.gameOver = true;
+  }
+
+  // エフェクト時間更新
+  if (state.effectTime > 0) {
+    state.effectTime -= delta;
+    if (state.effectTime <= 0) {
+      state.effect = null;
+    }
   }
 }
 
